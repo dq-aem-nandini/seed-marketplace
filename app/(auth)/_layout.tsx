@@ -1,17 +1,15 @@
-
-import { Slot, useRouter } from "expo-router";
-import { useAuth } from "../context/AuthContext";
-import { useEffect } from "react";
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 export default function AuthLayout() {
-  const { userToken } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (userToken) {
-      router.replace("/(root)/(tabs)");
-    }
-  }, [userToken]);
-
-  return <Slot />;
+  return (
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-up" />
+      </Stack>
+      <StatusBar style="light" />
+    </>
+  );
 }
