@@ -23,7 +23,7 @@ const Input: React.FC<InputProps> = ({
   label,
   error,
   leftIcon,
-  rightIcon,
+  // rightIcon,
   onRightIconPress,
   containerStyle,
   labelColor = "#000", // fallback
@@ -55,11 +55,11 @@ const Input: React.FC<InputProps> = ({
           {...props}
         />
 
-        {rightIcon && (
+        {/* {rightIcon && (
           <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
             <Ionicons name={rightIcon as any} size={20} color="#6B7280" />
           </TouchableOpacity>
-        )}
+        )} */}
       </View>
 
       {error && (

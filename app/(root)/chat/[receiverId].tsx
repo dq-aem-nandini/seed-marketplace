@@ -21,22 +21,22 @@ import { useDarkMode } from "@/app/context/DarkModeContext";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getChatHistory } from "@/api/chat";
+
 import { ChatMessage } from "@/api/types";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import {
   connectWebSocket,
   sendChatMessage,
-  subscribeChatToMessages,
+  subscribeToMessages,
 } from "@/api/websocket";
+import { getChatHistory } from "@/api/services";
 
 export default function ChatDetailScreen() {
   const { colors } = useDarkMode();
   const dispatch = useDispatch();
-  const { receiverId, receiverName, productId } = useLocalSearchParams<{
+  const { receiverId, receiverName } = useLocalSearchParams<{
     receiverId: string;
     receiverName: string;
-    productId: string;
   }>();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -62,20 +62,21 @@ export default function ChatDetailScreen() {
       const userId = await AsyncStorage.getItem("userId");
       setCurrentUserId(userId);
 
-      if (userId && receiverId && productId) {
-        await fetchChatHistory(receiverId, productId);
+      if (userId && receiverId) {
+        await fetchChatHistory(receiverId);
 
         // Connect WebSocket with proper error handling
         connectWebSocket(() => {
           // Subscribe to this user's incoming messages
-          subscribeChatToMessages(userId, (msg) => {
+          subscribeToMessages(userId, (msg) => {
             try {
               const received = JSON.parse(msg.body);
 
               // Filter messages based on receiver & product
               if (
-                received.senderId === receiverId &&
-                received.productId === parseInt(productId)
+                received.senderId === receiverId 
+                // &&
+                // received.productId === parseInt(productId)
               ) {
                 setMessages((prev) => {
                   // Avoid duplicate messages
@@ -99,8 +100,9 @@ export default function ChatDetailScreen() {
       setLoading(false);
     }
   };
-
-  const fetchChatHistory = async (partnerId: string, prodId: string) => {
+ 
+  
+  const fetchChatHistory = async (partnerId: string) => {
     try {
       const history = await getChatHistory(partnerId);
       if (history && Array.isArray(history)) {
@@ -135,7 +137,6 @@ export default function ChatDetailScreen() {
       receiverId: receiverId,
       content: newMessage.trim(),
       timestamp: new Date().toISOString(),
-      productId: parseInt(productId),
     };
 
     // Add message to local state immediately for better UX
@@ -152,7 +153,7 @@ export default function ChatDetailScreen() {
         senderId: message.senderId,
         receiverId: message.receiverId,
         content: message.content,
-        product: { id: parseInt(productId) },
+        // product: { id: parseInt(productId) },
       });
       console.log("Message sent:", message);
     } catch (error) {

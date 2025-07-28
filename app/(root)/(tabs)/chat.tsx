@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,16 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch } from "react-redux";
 import { clearBadge } from "@/store/badgeSlice";
 import { useFocusEffect } from "expo-router";
-import { useCallback } from "react";
-
-
-import { getAllUsers, getChatConversations } from "@/api/services";
-import { ChatConversation, UserModel } from "@/api/types";
-
+import { getChatConversations } from "@/api/services";
+import { ChatConversation } from "@/api/types";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import Input from "@/app/components/ui/Input";
 import { useDarkMode } from "../../context/DarkModeContext";
-
 
 interface ChatUser {
   id: string;
@@ -45,23 +39,32 @@ export default function ChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConversations();
-    getCurrentUserId();
+    const initialize = async () => {
+      try {
+        setLoading(true);
+        const userId = await AsyncStorage.getItem("userId");
+        setCurrentUserId(userId);
+        await fetchConversations();
+      } catch (err) {
+        console.error("Initialization error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
   }, []);
 
   // Clear chat badge when screen is focused
   useFocusEffect(
     useCallback(() => {
-      dispatch(clearBadge('chat'));
+      dispatch(clearBadge("chat"));
     }, [dispatch])
   );
 
   useEffect(() => {
     if (searchText.trim()) {
-      const filtered = users.filter(
-        (user) =>
-          user.name.toLowerCase().includes(searchText.toLowerCase()) ||
-          user.name.toLowerCase().includes(searchText.toLowerCase())
+      const filtered = users.filter((user) =>
+        user.name?.toLowerCase().includes(searchText.toLowerCase())
       );
       setFilteredUsers(filtered);
     } else {
@@ -69,22 +72,15 @@ export default function ChatScreen() {
     }
   }, [searchText, users]);
 
-  const getCurrentUserId = async () => {
-    const userId = await AsyncStorage.getItem("userId");
-    setCurrentUserId(userId);
-  };
   const fetchConversations = async () => {
     try {
-      setLoading(true);
-      const currentUserId = await AsyncStorage.getItem("userId");
-      setCurrentUserId(currentUserId);
-
       const conversations: ChatConversation[] = await getChatConversations();
+      // console.log("Conversations:", conversations); // Debug
 
-      // Deduplicate by partnerId + productId
+      // Deduplicate by partnerId
       const uniqueMap = new Map<string, ChatConversation>();
       for (const conv of conversations) {
-        const key = `${conv.partnerId}-${conv.productId}`;
+        const key = `${conv.partnerId}`;
         if (!uniqueMap.has(key)) {
           uniqueMap.set(key, conv);
         }
@@ -92,33 +88,28 @@ export default function ChatScreen() {
 
       const chatUsers: ChatUser[] = Array.from(uniqueMap.values())
         .sort((a, b) => {
-          // Sort by lastMessageTime (newest first)
           const timeA = new Date(a.lastMessageTime).getTime();
           const timeB = new Date(b.lastMessageTime).getTime();
           return timeB - timeA;
         })
-        .map(
-        (conv) => ({
-          id: conv.partnerId,
-          name: conv.partnerName,
+        .map((conv) => ({
+          id: conv.partnerId ?? "unknown",
+          name: conv.partnerName ?? "Unknown User",
           profileImageUrl: conv.profileImageUrl,
-          lastMessage: conv.lastMessage,
-          lastMessageTime: new Date(conv.lastMessageTime).toLocaleTimeString(
-            [],
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-            }
-          ),
-          unreadCount: Math.floor(Math.random() * 3), // simulated
-        })
-      );
+          lastMessage: conv.lastMessage ?? "No message",
+          lastMessageTime: conv.lastMessageTime
+            ? new Date(conv.lastMessageTime).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "N/A",
+          unreadCount: Math.floor(Math.random() * 3), // Simulated, replace with real data
+        }));
 
+      // console.log("ChatUsers:", chatUsers); // Debug
       setUsers(chatUsers);
     } catch (err) {
       console.error("Error fetching conversations:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -126,9 +117,9 @@ export default function ChatScreen() {
     router.push({
       pathname: "/(root)/chat/[receiverId]",
       params: {
-        receiverId: user.id!,
+        receiverId: user.id,
         receiverName: user.name,
-        productId: "1", // Default product ID, should be dynamic in real app
+        productId: "1", // Replace with dynamic product ID
       },
     });
   };
@@ -152,7 +143,7 @@ export default function ChatScreen() {
               }}
               style={styles.avatar}
             />
-            {item.unreadCount && item.unreadCount > 0 && (
+            {item.unreadCount > 0 && (
               <View style={styles.onlineIndicator} />
             )}
           </View>
@@ -160,18 +151,21 @@ export default function ChatScreen() {
           <View style={styles.chatInfo}>
             <View style={styles.chatHeader}>
               <Text style={[styles.userName, { color: colors.text }]}>
-                {item.name}
+                {item.name || "Unknown"}
               </Text>
               <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
-                {item.lastMessageTime}
+                {item.lastMessageTime || "N/A"}
               </Text>
             </View>
 
             <View style={styles.messageRow}>
-              <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
-                {item.lastMessage}
+              <Text
+                style={[styles.lastMessage, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {item.lastMessage || "No message"}
               </Text>
-              {item.unreadCount && item.unreadCount > 0 && (
+              {item.unreadCount > 0 && (
                 <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
                   <Text style={[styles.unreadText, { color: colors.surface }]}>
                     {item.unreadCount}
@@ -217,9 +211,9 @@ export default function ChatScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={filteredUsers}
-        keyExtractor={(item) => item.id!}
+        keyExtractor={(item) => item.id}
         ListHeaderComponent={
-          <>
+          <View>
             {renderHeader()}
             <View style={styles.searchContainer}>
               <Input
@@ -230,7 +224,7 @@ export default function ChatScreen() {
                 containerStyle={styles.searchInput}
               />
             </View>
-          </>
+          </View>
         }
         renderItem={renderChatItem}
         contentContainerStyle={styles.listContent}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,11 @@ import {
   SafeAreaView,
   RefreshControl,
   TouchableOpacity,
+  Modal,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import { router, useFocusEffect } from "expo-router";
 import { useDispatch } from "react-redux";
 import { getSentNotifications } from "@/api/services";
@@ -16,6 +19,7 @@ import { useApi } from "@/hooks/useApi";
 import { clearBadge, setBadgeCount } from "@/store/badgeSlice";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useDarkMode } from "@/app/context/DarkModeContext";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 export default function OrdersScreen() {
   const { colors } = useDarkMode();
@@ -23,9 +27,14 @@ export default function OrdersScreen() {
   const { response, loading, error, refetch } = useApi(getSentNotifications, {
     immediate: true,
   });
-
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateFilter, setDateFilter] = useState<Date | null>(null);
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "PENDING" | "ACCEPTED" | "REJECTED"
+  >("ALL");
   const sentNotifications = response?.response ?? [];
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sort notifications by sendAt date (newest first)
   const sortedNotifications = [...sentNotifications].sort((a, b) => {
@@ -34,18 +43,30 @@ export default function OrdersScreen() {
     return dateB - dateA;
   });
 
+  // Filter notifications by status and date
+  const filteredNotifications = sortedNotifications.filter((item) => {
+    const matchesStatus =
+      statusFilter === "ALL" || item.requestStatus === statusFilter;
+    const matchesDate = dateFilter
+      ? new Date(item.sendAt).toDateString() ===
+        new Date(dateFilter).toDateString()
+      : true;
+    return matchesStatus && matchesDate;
+  });
+
+  // Filter pending requests for badge count
   const pendingRequests = sentNotifications.filter(
     (item) => item.requestStatus === "PENDING"
   );
 
-  const onRefresh = React.useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
 
   // Update badge count when data changes
-  React.useEffect(() => {
+  useEffect(() => {
     dispatch(setBadgeCount({ type: "orders", count: pendingRequests.length }));
   }, [pendingRequests.length, dispatch]);
 
@@ -103,17 +124,21 @@ export default function OrdersScreen() {
               {pendingRequests.length !== 1 ? "s" : ""}
             </Text>
           </View>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.headerText }]}>
-                {sentNotifications.length}
-              </Text>
-              <Text
-                style={[styles.statLabel, { color: `${colors.headerText}CC` }]}
-              >
-                Total
-              </Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => setFilterModalVisible(true)}>
+              <Ionicons name="filter" size={24} color={colors.headerText} />
+            </TouchableOpacity>
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNumber, { color: colors.headerText }]}>
+                  {filteredNotifications.length}
+                </Text>
+                <Text
+                  style={[styles.statLabel, { color: `${colors.headerText}CC` }]}
+                >
+                  Total
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -121,7 +146,7 @@ export default function OrdersScreen() {
     </View>
   );
 
-  const renderOrderItem = ({ item, index }: { item: any; index: number }) => {
+  const renderOrderItem = ({ item }: { item: any }) => {
     const status = item.requestStatus || item.status || "PENDING";
     const totalAmount = (item.desiredQuantity * item.desiredPricePerKg).toFixed(
       2
@@ -331,7 +356,6 @@ export default function OrdersScreen() {
         <Text style={[styles.errorText, { color: colors.text }]}>
           Failed to load orders
         </Text>
-        {/* <Button title="Retry" onPress={refetch} /> */}
         <TouchableOpacity
           onPress={refetch}
           style={[styles.retryButton, { backgroundColor: colors.primary }]}
@@ -347,7 +371,7 @@ export default function OrdersScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={sortedNotifications}
+        data={filteredNotifications}
         keyExtractor={(item) => item.id.toString()}
         ListHeaderComponent={renderHeader}
         renderItem={renderOrderItem}
@@ -372,6 +396,96 @@ export default function OrdersScreen() {
           </View>
         }
       />
+      {/* Filter Modal */}
+      <Modal visible={filterModalVisible} animationType="slide" transparent>
+        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.4)" }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Filter Orders
+              </Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Status Filter Dropdown */}
+            <View style={styles.pickerContainer}>
+              <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+                Filter by Status
+              </Text>
+              <Picker
+                selectedValue={statusFilter}
+                onValueChange={(value) => setStatusFilter(value)}
+                style={[styles.picker, { color: colors.text, backgroundColor: colors.background }]}
+                dropdownIconColor={colors.textSecondary}
+              >
+                <Picker.Item label="All" value="ALL" />
+                <Picker.Item label="Pending" value="PENDING" />
+                <Picker.Item label="Accepted" value="ACCEPTED" />
+                <Picker.Item label="Rejected" value="REJECTED" />
+              </Picker>
+            </View>
+
+            {/* Date Filter */}
+            <View style={styles.dateFilterContainer}>
+              <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+                Filter by Date
+              </Text>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { borderColor: colors.primary }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={[styles.datePickerText, { color: colors.text }]}>
+                  {dateFilter ? new Date(dateFilter).toDateString() : "Select Date"}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateFilter || new Date()}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  maximumDate={new Date()} // Prevent future dates
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      setDateFilter(selectedDate);
+                    }
+                  }}
+                />
+              )}
+            </View>
+
+            {/* Modal Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.clearButton, { borderColor: colors.textSecondary }]}
+                onPress={() => {
+                  setStatusFilter("ALL");
+                  setDateFilter(null);
+                  setFilterModalVisible(false);
+                }}
+              >
+                <Text style={[styles.clearText, { color: colors.text }]}>
+                  Clear
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.applyButton, { backgroundColor: colors.primary }]}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Text style={[styles.applyText, { color: colors.surface }]}>
+                  Apply
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -380,13 +494,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: { paddingBottom: 20 },
+  header: {
+    paddingBottom: 20,
+  },
   headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 10,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
   },
   headerTitle: {
     fontSize: 28,
@@ -561,8 +682,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#8B5CF6",
-    alignSelf: "flex-start",
   },
   chatButtonText: {
     fontSize: 14,
@@ -610,5 +729,91 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: "center",
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    padding: 20,
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "center",
+  },
+  closeButton: {
+    position: "absolute",
+    right: 0,
+  },
+  pickerContainer: {
+    marginBottom: 20,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  picker: {
+    height: 55,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dateFilterContainer: {
+    marginBottom: 20,
+  },
+  datePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  datePickerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  clearButton: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    width: "45%",
+    alignItems: "center",
+  },
+  clearText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  applyButton: {
+    padding: 10,
+    borderRadius: 8,
+    width: "45%",
+    alignItems: "center",
+  },
+  applyText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

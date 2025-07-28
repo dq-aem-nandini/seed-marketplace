@@ -274,11 +274,10 @@ export const getMessageById = async (messageId: number): Promise<ChatMessage> =>
 };
 
 // Get full chat history with a partner
-export const getChatHistory = async (partnerId: string): Promise<ChatMessage[]> => {
-  const res = await api.get<{ response: ChatMessage[] }>(
-    `/web/api/v1/chat/history/${partnerId}`
-  );
-  return res.data?.response || [];
+export const getChatHistory = async (partnerId: string) => {
+  const res = await api.get(`/web/api/v1/chat/history/${partnerId}`);
+  return res.data?.response;
 };
+
 
 

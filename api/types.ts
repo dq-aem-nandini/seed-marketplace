@@ -162,7 +162,7 @@ export interface ChatMessage {
   receiverProfileImageUrl?: string;
   content: string;
   timestamp: string;
-  productId: number;
+  // productId: number;
 }
 
 // export interface ChatUser {
@@ -179,7 +179,6 @@ export interface ChatConversation {
   partnerId: string;
   partnerName: string;
   profileImageUrl: string | null;
-  productId: number;
   lastMessage: string;
   lastMessageTime: string; // ISO string
 }

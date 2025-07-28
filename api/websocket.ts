@@ -6,35 +6,26 @@ import { logger } from "@/utils/logger";
 
 let stompClient: Client | null = null;
 
-const WS_URL = `http://192.168.1.28:8081/ws`;
-
-/**
- * Connect to WebSocket server using SockJS and STOMP
- */
+const WS_URL = `http://192.168.1.10:8081/ws`;
 export const connectWebSocket = (onReady: () => void) => {
-  // Disconnect existing connection if any
-  if (stompClient && stompClient.connected) {
-    stompClient.deactivate();
+  if (stompClient?.active) {
+    logger.debug("WebSocket already active, skipping reconnect");
+    return;
   }
-  
+
   const socket = new SockJS(WS_URL);
   stompClient = new Client({
     webSocketFactory: () => socket,
     debug: (str) => logger.debug("WebSocket Debug", str),
     reconnectDelay: 5000,
+    heartbeatIncoming: 10000, // expect to receive a heartbeat every 10s
+    heartbeatOutgoing: 10000, // send a heartbeat every 10s
     onConnect: () => {
       logger.wsConnect(WS_URL);
-      onReady(); // trigger subscriptions
+      onReady(); // subscriptions go here
     },
     onDisconnect: () => {
       logger.wsDisconnect(WS_URL);
-      // Attempt to reconnect after 3 seconds
-      setTimeout(() => {
-        if (stompClient && !stompClient.connected) {
-          logger.info("Attempting to reconnect WebSocket...");
-          stompClient.activate();
-        }
-      }, 3000);
     },
     onStompError: (frame) => {
       logger.wsError(frame);
@@ -51,19 +42,6 @@ export const connectWebSocket = (onReady: () => void) => {
  * Subscribe to incoming messages for a user (chat messages)
  */
 export const subscribeToMessages = (
-  userId: string,
-  onMessage: (msg: IMessage) => void
-) => {
-  if (!stompClient?.connected) return;
-  const topic = `/topic/messages/${userId}`;
-  logger.info("Subscribing to messages topic", { topic, userId });
-  stompClient.subscribe(topic, onMessage);
-};
-
-/**
- * Subscribe to chat messages (duplicate safe)
- */
-export const subscribeChatToMessages = (
   userId: string,
   onMessage: (msg: IMessage) => void
 ) => {
@@ -118,7 +96,6 @@ export const sendChatMessage = (chatMessage: {
   senderId: string;
   receiverId: string;
   content: string;
-  product: { id: number };
 }) => {
   if (!stompClient?.connected) {
     logger.error("Cannot send message: WebSocket not connected");
