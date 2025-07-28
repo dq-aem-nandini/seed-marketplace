@@ -253,6 +253,7 @@ export const markNotificationAsClearedAll = async (): Promise<WebResponseDTO<str
   return response.data;
 };
 
+//chat messages
 export const getChatConversations = async (): Promise<ChatConversation[]> => {
   try {
     const res = await api.get<{ response: ChatConversation[] }>(
