@@ -1,3 +1,4 @@
+
 import {
   ActivityIndicator,
   FlatList,
@@ -292,3 +293,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

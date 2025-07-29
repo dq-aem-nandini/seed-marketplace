@@ -30,7 +30,7 @@ import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 export default function Home() {
   const { colors } = useDarkMode();
   const [searchText, setSearchText] = useState("");
-  const [filters, setFilters] = useState({ min: 0, max: 50 });
+  const [filters, setFilters] = useState({ min: 0, max: 1000 });
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [requestModalVisible, setRequestModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);

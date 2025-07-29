@@ -6,7 +6,7 @@ import { logger } from "@/utils/logger";
 
 let stompClient: Client | null = null;
 
-const WS_URL = `http://192.168.1.10:8081/ws`;
+const WS_URL = `http://192.168.1.42:8081/ws`;
 export const connectWebSocket = (onReady: () => void) => {
   if (stompClient?.active) {
     logger.debug("WebSocket already active, skipping reconnect");
